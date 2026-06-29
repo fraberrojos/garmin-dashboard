@@ -115,6 +115,35 @@ export default function GarminDashboard() {
   }, []);
 
   const analyzeAndRecommend = async () => {
+    if (!todayStats) {
+      setError('No hay datos disponibles');
+      return;
+    }
+
+    setAnalyzing(true);
+    setRecommendation(null);
+
+    try {
+      const response = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stats: todayStats }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError('Error: ' + (data.error || 'Unknown error'));
+        return;
+      }
+
+      setRecommendation(data.recommendation);
+    } catch (err) {
+      setError('Error: ' + err.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
     if (!todayStats || !ANTHROPIC_API_KEY || ANTHROPIC_API_KEY === "tu_clave_api_aqui") {
       setError('Necesitas configurar tu clave API de Anthropic en el código.');
       return;
