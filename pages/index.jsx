@@ -4,14 +4,14 @@ import { Activity, Heart, Flame, Moon, TrendingUp, Zap, Target, Brain, AlertCirc
 
 export default function GarminDashboard() {
   // ⚠️ REEMPLAZA ESTOS VALORES CON TUS DATOS
-  const HA_TOKEN = "tu_token_aqui";
-  const ANTHROPIC_API_KEY = "tu_clave_api_aqui";
+  const HA_TOKEN = process.env.NEXT_PUBLIC_HA_TOKEN;
+  const ANTHROPIC_API_KEY = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY;
   const HA_LOCAL_URL = "http://homeassistant.local:8123";
   const HA_REMOTE_URL = "https://lospichus.duckdns.org";
 
   const [todayStats, setTodayStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null);6
   const [analyzing, setAnalyzing] = useState(false);
   const [recommendation, setRecommendation] = useState(null);
   const [haUrl, setHaUrl] = useState(HA_LOCAL_URL);
