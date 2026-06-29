@@ -3,20 +3,17 @@ import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, Cartesia
 import { Activity, Heart, Flame, Moon, TrendingUp, Zap, Target, Brain, AlertCircle, Loader } from 'lucide-react';
 
 export default function GarminDashboard() {
-  // ⚠️ REEMPLAZA ESTOS VALORES CON TUS DATOS
   const HA_TOKEN = process.env.NEXT_PUBLIC_HA_TOKEN;
-  const ANTHROPIC_API_KEY = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY;
   const HA_LOCAL_URL = "http://homeassistant.local:8123";
   const HA_REMOTE_URL = "https://lospichus.duckdns.org";
 
   const [todayStats, setTodayStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);6
+  const [error, setError] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [recommendation, setRecommendation] = useState(null);
   const [haUrl, setHaUrl] = useState(HA_LOCAL_URL);
 
-  // Datos de prueba como fallback
   const defaultStats = {
     steps: 5080,
     stepsGoal: 10000,
@@ -38,7 +35,6 @@ export default function GarminDashboard() {
     trainingStatus: 'Recuperación'
   };
 
-  // Intentar conectar a HA
   useEffect(() => {
     const fetchGarminData = async () => {
       setLoading(true);
@@ -79,16 +75,13 @@ export default function GarminDashboard() {
         }
       };
 
-      // Intentar local primero
       let data = await fetchFromHA(HA_LOCAL_URL);
       
       if (!data || Object.keys(data).length === 0) {
-        // Si falla, intentar remoto
         data = await fetchFromHA(HA_REMOTE_URL);
         if (data && Object.keys(data).length > 0) {
           setHaUrl(HA_REMOTE_URL);
         } else {
-          // Si ambos fallan, usar datos de prueba
           data = defaultStats;
           setError('No se pudo conectar a Home Assistant. Usando datos de prueba.');
         }
@@ -96,7 +89,6 @@ export default function GarminDashboard() {
         setHaUrl(HA_LOCAL_URL);
       }
 
-      // Convertir distancia a km si es necesario
       if (data.distance && data.distance > 100) {
         data.distance = data.distance / 1000;
       }
@@ -109,7 +101,6 @@ export default function GarminDashboard() {
     };
 
     fetchGarminData();
-    // Actualizar cada 5 minutos
     const interval = setInterval(fetchGarminData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -140,71 +131,6 @@ export default function GarminDashboard() {
       setRecommendation(data.recommendation);
     } catch (err) {
       setError('Error: ' + err.message);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-    if (!todayStats || !ANTHROPIC_API_KEY || ANTHROPIC_API_KEY === "tu_clave_api_aqui") {
-      setError('Necesitas configurar tu clave API de Anthropic en el código.');
-      return;
-    }
-
-    setAnalyzing(true);
-    setRecommendation(null);
-
-    const prompt = `Eres un entrenador personal experto. Analiza estos datos de bienestar y recomienda un entrenamiento específico.
-
-DATOS ACTUALES:
-- Pasos hoy: ${todayStats.steps} / ${todayStats.stepsGoal}
-- Calorías activas: ${todayStats.activeCalories} kcal
-- Frecuencia cardíaca en reposo: ${todayStats.restingHeartRate} bpm
-- FC máxima hoy: ${todayStats.maxHeartRate} bpm
-- Sueño anoche: ${(todayStats.totalSleep / 60).toFixed(1)} horas
-- Sueño profundo: ${(todayStats.deepSleep / 60).toFixed(1)} h
-- VO2 Máximo: ${todayStats.vo2Max} ml/kg/min
-- Nivel de estrés: ${todayStats.avgStress} / 100
-- Tiempo activo hoy: ${todayStats.activeTime} minutos
-- Distancia hoy: ${todayStats.distance} km
-
-PERFIL DEL ATLETA:
-- Principiante
-- Interesado en: ciclismo (prioritario), correr, entrenamiento de fuerza
-- Hora actual: ${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}
-- Frecuencia: variable según disponibilidad
-
-BASÁNDOTE EN ESTOS DATOS:
-1. Determina su estado de recuperación (bueno/moderado/bajo)
-2. Recomienda un tipo de entrenamiento específico ahora (ciclismo, correr, fuerza, descanso, etc)
-3. Define duración e intensidad
-4. Explica POR QUÉ esa recomendación basada en sus métricas
-5. Si el sueño es bajo o estrés alto, prioriza recuperación
-
-Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
-
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 300,
-          messages: [
-            { role: "user", content: prompt }
-          ],
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.content && data.content[0]) {
-        setRecommendation(data.content[0].text);
-      } else {
-        setError('Error al procesar la recomendación');
-      }
-    } catch (err) {
-      setError('Error conectando con IA: ' + err.message);
     } finally {
       setAnalyzing(false);
     }
@@ -264,7 +190,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
-      {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -280,7 +205,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         </div>
       </div>
 
-      {/* Error Banner */}
       {error && (
         <div className="mb-6 bg-yellow-900/30 border border-yellow-700 rounded-lg p-4 flex gap-3">
           <AlertCircle size={20} className="text-yellow-400 flex-shrink-0" />
@@ -288,7 +212,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         </div>
       )}
 
-      {/* Botón de Análisis IA - Destacado */}
       <div className="mb-8">
         <button
           onClick={analyzeAndRecommend}
@@ -309,7 +232,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         </button>
       </div>
 
-      {/* Recomendación IA */}
       {recommendation && (
         <div className="mb-8 bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500 rounded-xl p-6">
           <div className="flex gap-4">
@@ -322,7 +244,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         </div>
       )}
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard 
           icon={Activity} 
@@ -358,7 +279,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         />
       </div>
 
-      {/* Métricas secundarias */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
           <p className="text-xs text-slate-400 mb-1">FC Máxima</p>
@@ -382,7 +302,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         </div>
       </div>
 
-      {/* Desglose de Sueño */}
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700 mb-8">
         <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
           <Moon size={20} className="text-indigo-400" />
@@ -408,7 +327,6 @@ Responde en español, de forma concisa y práctica. Máximo 150 palabras.`;
         </div>
       </div>
 
-      {/* Información de configuración */}
       <div className="text-xs text-slate-500 text-center">
         Conectado a: {haUrl} | Actualización automática cada 5 minutos
       </div>
