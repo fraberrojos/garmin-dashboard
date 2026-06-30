@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, ComposedChart } from 'recharts';
-import { Activity, Heart, Flame, Moon, TrendingUp, Zap, Target, Brain, AlertCircle, Loader } from 'lucide-react';
+import { Activity, Heart, Flame, Moon, TrendingUp, Zap, Target, Brain, AlertCircle, Loader, Send, MessageCircle } from 'lucide-react';
 
 export default function GarminDashboard() {
   const HA_TOKEN = process.env.NEXT_PUBLIC_HA_TOKEN;
@@ -13,6 +13,10 @@ export default function GarminDashboard() {
   const [analyzing, setAnalyzing] = useState(false);
   const [recommendation, setRecommendation] = useState(null);
   const [haUrl, setHaUrl] = useState(HA_LOCAL_URL);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const defaultStats = {
     steps: 5080,
@@ -35,7 +39,6 @@ export default function GarminDashboard() {
     trainingStatus: 'Recuperación'
   };
 
-  // Datos simulados para gráficas
   const weeklyStepsData = [
     { day: 'Lun', steps: 9200, calories: 2300, activeMin: 50 },
     { day: 'Mar', steps: 7850, calories: 2100, activeMin: 35 },
@@ -55,13 +58,13 @@ export default function GarminDashboard() {
   ];
 
   const sleepData = [
-    { day: 'Lun', sleep: 7.2, deep: 1.5, light: 4.2, rem: 1.5 },
-    { day: 'Mar', sleep: 6.8, deep: 1.2, light: 4.1, rem: 1.5 },
-    { day: 'Mié', sleep: 8.1, deep: 2.0, light: 4.5, rem: 1.6 },
-    { day: 'Jue', sleep: 7.9, deep: 1.8, light: 4.4, rem: 1.7 },
-    { day: 'Vie', sleep: 7.5, deep: 1.6, light: 4.2, rem: 1.7 },
-    { day: 'Sab', sleep: 8.3, deep: 2.1, light: 4.6, rem: 1.6 },
-    { day: 'Dom', sleep: 6.0, deep: 1.1, light: 3.6, rem: 1.3 }
+    { day: 'Lun', sleep: 7.2 },
+    { day: 'Mar', sleep: 6.8 },
+    { day: 'Mié', sleep: 8.1 },
+    { day: 'Jue', sleep: 7.9 },
+    { day: 'Vie', sleep: 7.5 },
+    { day: 'Sab', sleep: 8.3 },
+    { day: 'Dom', sleep: 6.0 }
   ];
 
   const activitiesData = [
@@ -172,6 +175,37 @@ export default function GarminDashboard() {
     }
   };
 
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !todayStats) return;
+
+    const userMessage = chatInput;
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setChatLoading(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: userMessage, stats: todayStats }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setChatMessages(prev => [...prev, { role: 'assistant', text: 'Error: ' + (data.error || 'Unknown error') }]);
+        return;
+      }
+
+      setChatMessages(prev => [...prev, { role: 'assistant', text: data.answer }]);
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Error: ' + err.message }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
@@ -248,37 +282,89 @@ export default function GarminDashboard() {
         </div>
       )}
 
-      <div className="mb-8">
-        <button
-          onClick={analyzeAndRecommend}
-          disabled={analyzing}
-          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 text-lg shadow-lg"
-        >
-          {analyzing ? (
-            <>
-              <Loader size={24} className="animate-spin" />
-              Analizando tus métricas...
-            </>
-          ) : (
-            <>
-              <Brain size={24} />
-              Analizar y Recomendar Entrenamiento
-            </>
-          )}
-        </button>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2">
+          <button
+            onClick={analyzeAndRecommend}
+            disabled={analyzing}
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 text-lg shadow-lg mb-6"
+          >
+            {analyzing ? (
+              <>
+                <Loader size={24} className="animate-spin" />
+                Analizando tus métricas...
+              </>
+            ) : (
+              <>
+                <Brain size={24} />
+                Analizar y Recomendar Entrenamiento
+              </>
+            )}
+          </button>
 
-      {recommendation && (
-        <div className="mb-8 bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500 rounded-xl p-6">
-          <div className="flex gap-4">
-            <Zap size={28} className="text-purple-400 flex-shrink-0" />
-            <div>
-              <h2 className="text-xl font-bold text-white mb-3">Tu Entrenamiento Recomendado:</h2>
-              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">{recommendation}</p>
+          {recommendation && (
+            <div className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500 rounded-xl p-6">
+              <div className="flex gap-4">
+                <Zap size={28} className="text-purple-400 flex-shrink-0" />
+                <div>
+                  <h2 className="text-xl font-bold text-white mb-3">Tu Entrenamiento Recomendado:</h2>
+                  <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">{recommendation}</p>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-slate-700 flex flex-col h-[500px]">
+          <div className="flex items-center justify-between p-4 border-b border-slate-700">
+            <h3 className="text-white font-bold flex items-center gap-2">
+              <MessageCircle size={20} className="text-cyan-400" />
+              Consultor IA
+            </h3>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {chatMessages.length === 0 && (
+              <div className="text-center text-slate-400 text-sm mt-4">
+                <p>Haz tus preguntas sobre entrenamiento y salud</p>
+              </div>
+            )}
+            {chatMessages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-xs rounded-lg p-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-200'}`}>
+                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-slate-700 rounded-lg p-3">
+                  <Loader size={16} className="text-cyan-400 animate-spin" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleChatSubmit} className="p-4 border-t border-slate-700">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Pregunta algo..."
+                className="flex-1 bg-slate-700 text-white rounded-lg px-3 py-2 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white p-2 rounded-lg transition-all"
+              >
+                <Send size={18} />
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard 
@@ -319,27 +405,22 @@ export default function GarminDashboard() {
         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
           <p className="text-xs text-slate-400 mb-1">FC Máxima</p>
           <p className="text-xl font-bold text-red-400">{todayStats.maxHeartRate}</p>
-          <p className="text-xs text-slate-500 mt-1">bpm</p>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
           <p className="text-xs text-slate-400 mb-1">VO₂ Máximo</p>
           <p className="text-xl font-bold text-cyan-400">{todayStats.vo2Max}</p>
-          <p className="text-xs text-slate-500 mt-1">ml/kg/min</p>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
           <p className="text-xs text-slate-400 mb-1">Distancia</p>
           <p className="text-xl font-bold text-emerald-400">{todayStats.distance.toFixed(2)}</p>
-          <p className="text-xs text-slate-500 mt-1">km</p>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-1">Nivel de Estrés</p>
+          <p className="text-xs text-slate-400 mb-1">Nivel Estrés</p>
           <p className="text-xl font-bold text-yellow-400">{todayStats.avgStress}</p>
-          <p className="text-xs text-slate-500 mt-1">0-100</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Gráfica Pasos Semanales */}
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
             <Activity size={20} className="text-blue-400" />
@@ -350,17 +431,12 @@ export default function GarminDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                labelStyle={{ color: '#fff' }}
-              />
-              <Legend />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
               <Bar dataKey="steps" fill="#3b82f6" name="Pasos" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Gráfica Frecuencia Cardíaca */}
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
             <Heart size={20} className="text-red-400" />
@@ -377,18 +453,14 @@ export default function GarminDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="time" stroke="#64748b" />
               <YAxis stroke="#64748b" domain={[50, 100]} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                labelStyle={{ color: '#fff' }}
-              />
-              <Area type="monotone" dataKey="hr" stroke="#ef4444" fillOpacity={1} fill="url(#colorHR)" name="BPM" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
+              <Area type="monotone" dataKey="hr" stroke="#ef4444" fillOpacity={1} fill="url(#colorHR)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Gráfica Sueño */}
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
             <Moon size={20} className="text-indigo-400" />
@@ -405,17 +477,12 @@ export default function GarminDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                labelStyle={{ color: '#fff' }}
-              />
-              <Legend />
-              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fillOpacity={1} fill="url(#colorSleep)" name="Horas" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
+              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fillOpacity={1} fill="url(#colorSleep)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Gráfica Actividades */}
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
             <TrendingUp size={20} className="text-purple-400" />
@@ -423,55 +490,14 @@ export default function GarminDashboard() {
           </h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie
-                data={activitiesData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
+              <Pie data={activitiesData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}%`} outerRadius={100} fill="#8884d8" dataKey="value">
                 {activitiesData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                labelStyle={{ color: '#fff' }}
-              />
             </PieChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Desglose de Sueño */}
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-        <h2 className="text-lg font-bold text-white mb-4">Desglose de Sueño - Última Noche</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-700/50 rounded-lg p-4">
-            <p className="text-sm text-slate-400 mb-2">Profundo</p>
-            <p className="text-2xl font-bold text-indigo-400">{(todayStats.deepSleep / 60).toFixed(1)}h</p>
-          </div>
-          <div className="bg-slate-700/50 rounded-lg p-4">
-            <p className="text-sm text-slate-400 mb-2">Ligero</p>
-            <p className="text-2xl font-bold text-cyan-400">{(todayStats.lightSleep / 60).toFixed(1)}h</p>
-          </div>
-          <div className="bg-slate-700/50 rounded-lg p-4">
-            <p className="text-sm text-slate-400 mb-2">REM</p>
-            <p className="text-2xl font-bold text-pink-400">{(todayStats.remSleep / 60).toFixed(1)}h</p>
-          </div>
-          <div className="bg-slate-700/50 rounded-lg p-4">
-            <p className="text-sm text-slate-400 mb-2">Total</p>
-            <p className="text-2xl font-bold text-purple-400">{(todayStats.totalSleep / 60).toFixed(1)}h</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="text-xs text-slate-500 text-center mt-8">
-        Conectado a: {haUrl} | Actualización automática cada 5 minutos
-      </div>
-    </div>
-  );
-}
+      <div className="text-xs text-slate-500 text-center
