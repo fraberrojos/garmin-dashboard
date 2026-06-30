@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, ComposedChart } from 'recharts';
 import { Activity, Heart, Flame, Moon, TrendingUp, Zap, Target, Brain, AlertCircle, Loader } from 'lucide-react';
 
 export default function GarminDashboard() {
@@ -34,6 +34,42 @@ export default function GarminDashboard() {
     vo2Max: 38.0,
     trainingStatus: 'Recuperación'
   };
+
+  // Datos simulados para gráficas
+  const weeklyStepsData = [
+    { day: 'Lun', steps: 9200, calories: 2300, activeMin: 50 },
+    { day: 'Mar', steps: 7850, calories: 2100, activeMin: 35 },
+    { day: 'Mié', steps: 11200, calories: 2600, activeMin: 65 },
+    { day: 'Jue', steps: 8950, calories: 2250, activeMin: 45 },
+    { day: 'Vie', steps: 10500, calories: 2450, activeMin: 55 },
+    { day: 'Sab', steps: 12100, calories: 2700, activeMin: 75 },
+    { day: 'Dom', steps: 5080, calories: 2145, activeMin: 45 }
+  ];
+
+  const heartRateData = [
+    { time: '00:00', hr: 58 },
+    { time: '06:00', hr: 62 },
+    { time: '12:00', hr: 75 },
+    { time: '18:00', hr: 82 },
+    { time: '23:59', hr: 68 }
+  ];
+
+  const sleepData = [
+    { day: 'Lun', sleep: 7.2, deep: 1.5, light: 4.2, rem: 1.5 },
+    { day: 'Mar', sleep: 6.8, deep: 1.2, light: 4.1, rem: 1.5 },
+    { day: 'Mié', sleep: 8.1, deep: 2.0, light: 4.5, rem: 1.6 },
+    { day: 'Jue', sleep: 7.9, deep: 1.8, light: 4.4, rem: 1.7 },
+    { day: 'Vie', sleep: 7.5, deep: 1.6, light: 4.2, rem: 1.7 },
+    { day: 'Sab', sleep: 8.3, deep: 2.1, light: 4.6, rem: 1.6 },
+    { day: 'Dom', sleep: 6.0, deep: 1.1, light: 3.6, rem: 1.3 }
+  ];
+
+  const activitiesData = [
+    { name: 'Ciclismo', value: 35, color: '#3b82f6' },
+    { name: 'Correr', value: 25, color: '#ef4444' },
+    { name: 'Fuerza', value: 20, color: '#f59e0b' },
+    { name: 'Otros', value: 20, color: '#10b981' }
+  ];
 
   useEffect(() => {
     const fetchGarminData = async () => {
@@ -189,11 +225,11 @@ export default function GarminDashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-col md:flex-row gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-1">Entrenador Personal IA</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">Entrenador Personal IA</h1>
             <p className="text-slate-400">Análisis Garmin + Recomendaciones inteligentes</p>
           </div>
           <div className="text-right">
@@ -302,11 +338,117 @@ export default function GarminDashboard() {
         </div>
       </div>
 
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700 mb-8">
-        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <Moon size={20} className="text-indigo-400" />
-          Desglose de Sueño
-        </h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Gráfica Pasos Semanales */}
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Activity size={20} className="text-blue-400" />
+            Pasos de la Semana
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={weeklyStepsData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="day" stroke="#64748b" />
+              <YAxis stroke="#64748b" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                labelStyle={{ color: '#fff' }}
+              />
+              <Legend />
+              <Bar dataKey="steps" fill="#3b82f6" name="Pasos" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Gráfica Frecuencia Cardíaca */}
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Heart size={20} className="text-red-400" />
+            FC durante el Día
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={heartRateData}>
+              <defs>
+                <linearGradient id="colorHR" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="time" stroke="#64748b" />
+              <YAxis stroke="#64748b" domain={[50, 100]} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                labelStyle={{ color: '#fff' }}
+              />
+              <Area type="monotone" dataKey="hr" stroke="#ef4444" fillOpacity={1} fill="url(#colorHR)" name="BPM" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Gráfica Sueño */}
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Moon size={20} className="text-indigo-400" />
+            Calidad de Sueño
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={sleepData}>
+              <defs>
+                <linearGradient id="colorSleep" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="day" stroke="#64748b" />
+              <YAxis stroke="#64748b" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                labelStyle={{ color: '#fff' }}
+              />
+              <Legend />
+              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fillOpacity={1} fill="url(#colorSleep)" name="Horas" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Gráfica Actividades */}
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <TrendingUp size={20} className="text-purple-400" />
+            Distribución de Actividades
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={activitiesData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value }) => `${name}: ${value}%`}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {activitiesData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                labelStyle={{ color: '#fff' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Desglose de Sueño */}
+      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+        <h2 className="text-lg font-bold text-white mb-4">Desglose de Sueño - Última Noche</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-slate-700/50 rounded-lg p-4">
             <p className="text-sm text-slate-400 mb-2">Profundo</p>
@@ -327,7 +469,7 @@ export default function GarminDashboard() {
         </div>
       </div>
 
-      <div className="text-xs text-slate-500 text-center">
+      <div className="text-xs text-slate-500 text-center mt-8">
         Conectado a: {haUrl} | Actualización automática cada 5 minutos
       </div>
     </div>
