@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, Heart, Flame, Moon, Brain, AlertCircle, Loader } from 'lucide-react';
+import { Activity, Heart, Flame, Moon, TrendingUp, AlertCircle, Loader } from 'lucide-react';
 
 export default function GarminDashboard() {
   const [todayStats, setTodayStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [recommendation, setRecommendation] = useState(null);
 
   const defaultStats = {
     steps: 5080, stepsGoal: 10000, activeCalories: 147, restingHeartRate: 48,
@@ -16,13 +14,13 @@ export default function GarminDashboard() {
   };
 
   const weeklyData = [
-    { day: 'Lun', steps: 9200 },
-    { day: 'Mar', steps: 7850 },
-    { day: 'Mié', steps: 11200 },
-    { day: 'Jue', steps: 8950 },
-    { day: 'Vie', steps: 10500 },
-    { day: 'Sab', steps: 12100 },
-    { day: 'Dom', steps: 5080 }
+    { day: 'Lun', steps: 9200, calories: 2300 },
+    { day: 'Mar', steps: 7850, calories: 2100 },
+    { day: 'Mié', steps: 11200, calories: 2600 },
+    { day: 'Jue', steps: 8950, calories: 2250 },
+    { day: 'Vie', steps: 10500, calories: 2450 },
+    { day: 'Sab', steps: 12100, calories: 2700 },
+    { day: 'Dom', steps: 5080, calories: 2145 }
   ];
 
   const heartData = [
@@ -40,10 +38,10 @@ export default function GarminDashboard() {
     { day: 'Jue', sleep: 7.9 },
     { day: 'Vie', sleep: 7.5 },
     { day: 'Sab', sleep: 8.3 },
-    { day: 'Dom', sleep: 6 }
+    { day: 'Dom', sleep: 6.0 }
   ];
 
-  const activities = [
+  const activitiesData = [
     { name: 'Ciclismo', value: 35, color: '#3b82f6' },
     { name: 'Correr', value: 25, color: '#ef4444' },
     { name: 'Fuerza', value: 20, color: '#f59e0b' },
@@ -51,66 +49,9 @@ export default function GarminDashboard() {
   ];
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const HA_TOKEN = process.env.NEXT_PUBLIC_HA_TOKEN;
-      const url = "http://homeassistant.local:8123";
-      const sensors = {
-        steps: 'sensor.garmin_connect_steps',
-        activeCalories: 'sensor.garmin_connect_active_calories',
-        restingHeartRate: 'sensor.garmin_connect_resting_heart_rate',
-        maxHeartRate: 'sensor.garmin_connect_max_heart_rate',
-        deepSleep: 'sensor.garmin_connect_deep_sleep',
-        lightSleep: 'sensor.garmin_connect_light_sleep',
-        remSleep: 'sensor.garmin_connect_rem_sleep',
-        totalSleep: 'sensor.garmin_connect_total_sleep_duration',
-        distance: 'sensor.garmin_connect_wellness_distance',
-        activeTime: 'sensor.garmin_connect_active_time',
-        avgStress: 'sensor.garmin_connect_average_stress_level',
-        vo2Max: 'sensor.garmin_connect_vo2_max'
-      };
-
-      try {
-        const data = {};
-        for (const [key, sensorId] of Object.entries(sensors)) {
-          const res = await fetch(`${url}/api/states/${sensorId}`, {
-            headers: { Authorization: `Bearer ${HA_TOKEN}` }
-          });
-          if (res.ok) {
-            const state = await res.json();
-            data[key] = parseFloat(state.state) || state.state;
-          }
-        }
-        if (Object.keys(data).length > 0) {
-          setTodayStats({ ...defaultStats, ...data });
-        } else {
-          setTodayStats(defaultStats);
-          setError('Datos de prueba');
-        }
-      } catch (err) {
-        setTodayStats(defaultStats);
-        setError('Datos de prueba');
-      }
-      setLoading(false);
-    };
-    fetchData();
+    setTodayStats(defaultStats);
+    setLoading(false);
   }, []);
-
-  const analyzeAndRecommend = async () => {
-    setAnalyzing(true);
-    try {
-      const res = await fetch('/api/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stats: todayStats })
-      });
-      const data = await res.json();
-      setRecommendation(data.recommendation || 'Sin respuesta');
-    } catch (err) {
-      setError('Error: ' + err.message);
-    }
-    setAnalyzing(false);
-  };
 
   if (loading || !todayStats) {
     return (
@@ -121,112 +62,151 @@ export default function GarminDashboard() {
   }
 
   const stepsProgress = (todayStats.steps / todayStats.stepsGoal) * 100;
+  const sleepProgress = (todayStats.totalSleep / todayStats.sleepGoal) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
       <h1 className="text-4xl font-bold text-white mb-2">Entrenador Personal IA</h1>
-      <p className="text-slate-400 mb-8">Análisis Garmin + Recomendaciones</p>
+      <p className="text-slate-400 mb-8">Análisis Garmin + Recomendaciones inteligentes</p>
 
-      {error && (
-        <div className="mb-6 bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
-          <p className="text-sm text-yellow-300">{error}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-start gap-3 mb-3">
+            <Activity size={20} className="text-blue-400" />
+            <span className="text-xs font-semibold text-slate-400">{Math.round(stepsProgress)}%</span>
+          </div>
+          <p className="text-slate-400 text-xs uppercase font-bold mb-2">Pasos</p>
+          <p className="text-2xl font-bold text-white mb-3">{todayStats.steps}</p>
+          <div className="w-full bg-slate-700 rounded-full h-2">
+            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.min(stepsProgress, 100)}%` }} />
+          </div>
         </div>
-      )}
 
-      <button
-        onClick={analyzeAndRecommend}
-        disabled={analyzing}
-        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-lg mb-6"
-      >
-        {analyzing ? <Loader size={24} className="animate-spin" /> : <Brain size={24} />}
-        {analyzing ? 'Analizando...' : 'Analizar Entrenamiento'}
-      </button>
-
-      {recommendation && (
-        <div className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500 rounded-xl p-6 mb-8">
-          <h2 className="text-xl font-bold text-white mb-3">Recomendación:</h2>
-          <p className="text-slate-200">{recommendation}</p>
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-start gap-3 mb-3">
+            <Flame size={20} className="text-orange-400" />
+          </div>
+          <p className="text-slate-400 text-xs uppercase font-bold mb-2">Calorías Activas</p>
+          <p className="text-2xl font-bold text-white">{Math.round(todayStats.activeCalories)}</p>
+          <p className="text-xs text-slate-500 mt-3">kcal</p>
         </div>
-      )}
+
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-start gap-3 mb-3">
+            <Heart size={20} className="text-red-400" />
+          </div>
+          <p className="text-slate-400 text-xs uppercase font-bold mb-2">FC en Reposo</p>
+          <p className="text-2xl font-bold text-white">{todayStats.restingHeartRate}</p>
+          <p className="text-xs text-slate-500 mt-3">bpm</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-start gap-3 mb-3">
+            <Moon size={20} className="text-indigo-400" />
+            <span className="text-xs font-semibold text-slate-400">{Math.round(sleepProgress)}%</span>
+          </div>
+          <p className="text-slate-400 text-xs uppercase font-bold mb-2">Sueño</p>
+          <p className="text-2xl font-bold text-white">{(todayStats.totalSleep / 60).toFixed(1)}</p>
+          <p className="text-xs text-slate-500 mt-3">hrs</p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-          <Activity size={20} className="text-blue-400 mb-2" />
-          <p className="text-slate-400 text-xs">Pasos</p>
-          <p className="text-2xl font-bold text-white">{todayStats.steps}</p>
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2">FC Máxima</p>
+          <p className="text-xl font-bold text-red-400">{todayStats.maxHeartRate}</p>
+          <p className="text-xs text-slate-500 mt-1">bpm</p>
         </div>
-        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-          <Flame size={20} className="text-orange-400 mb-2" />
-          <p className="text-slate-400 text-xs">Calorías</p>
-          <p className="text-2xl font-bold text-white">{Math.round(todayStats.activeCalories)}</p>
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2">VO₂ Máximo</p>
+          <p className="text-xl font-bold text-cyan-400">{todayStats.vo2Max}</p>
+          <p className="text-xs text-slate-500 mt-1">ml/kg/min</p>
         </div>
-        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-          <Heart size={20} className="text-red-400 mb-2" />
-          <p className="text-slate-400 text-xs">FC Reposo</p>
-          <p className="text-2xl font-bold text-white">{todayStats.restingHeartRate}</p>
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2">Distancia</p>
+          <p className="text-xl font-bold text-emerald-400">{todayStats.distance.toFixed(2)}</p>
+          <p className="text-xs text-slate-500 mt-1">km</p>
         </div>
-        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-          <Moon size={20} className="text-indigo-400 mb-2" />
-          <p className="text-slate-400 text-xs">Sueño</p>
-          <p className="text-2xl font-bold text-white">{(todayStats.totalSleep / 60).toFixed(1)}h</p>
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2">Nivel Estrés</p>
+          <p className="text-xl font-bold text-yellow-400">{todayStats.avgStress}</p>
+          <p className="text-xs text-slate-500 mt-1">0-100</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4">Pasos</h2>
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Activity size={20} className="text-blue-400" />
+            Pasos de la Semana
+          </h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={weeklyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b' }} />
-              <Bar dataKey="steps" fill="#3b82f6" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }} />
+              <Bar dataKey="steps" fill="#3b82f6" name="Pasos" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4">FC</h2>
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Heart size={20} className="text-red-400" />
+            FC durante el Día
+          </h2>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={heartData}>
               <defs>
                 <linearGradient id="colorHR" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="time" stroke="#64748b" />
-              <YAxis stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b' }} />
-              <Area type="monotone" dataKey="hr" stroke="#ef4444" fill="url(#colorHR)" />
+              <YAxis stroke="#64748b" domain={[50, 100]} />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }} />
+              <Area type="monotone" dataKey="hr" stroke="#ef4444" fillOpacity={1} fill="url(#colorHR)" name="BPM" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4">Sueño</h2>
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <Moon size={20} className="text-indigo-400" />
+            Calidad de Sueño
+          </h2>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={sleepData}>
+              <defs>
+                <linearGradient id="colorSleep" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b' }} />
-              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fill="#6366f1" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }} />
+              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fillOpacity={1} fill="url(#colorSleep)" name="Horas" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4">Actividades</h2>
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <TrendingUp size={20} className="text-purple-400" />
+            Distribución de Actividades
+          </h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={activities} cx="50%" cy="50%" outerRadius={100} dataKey="value">
-                {activities.map((e, i) => (
-                  <Cell key={i} fill={e.color} />
+              <Pie data={activitiesData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}%`} outerRadius={80} fill="#8884d8" dataKey="value">
+                {activitiesData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
             </PieChart>
