@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, Heart, Flame, Moon, TrendingUp, AlertCircle, Loader } from 'lucide-react';
+import { Activity, Heart, Flame, Moon, TrendingUp, Brain, AlertCircle, Loader, Send, MessageCircle } from 'lucide-react';
 
 export default function GarminDashboard() {
+  const HA_TOKEN = process.env.NEXT_PUBLIC_HA_TOKEN;
+  const HA_LOCAL_URL = "http://homeassistant.local:8123";
+  const HA_REMOTE_URL = "https://lospichus.duckdns.org";
+
   const [todayStats, setTodayStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [recommendation, setRecommendation] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   const defaultStats = {
     steps: 5080, stepsGoal: 10000, activeCalories: 147, restingHeartRate: 48,
     maxHeartRate: 104, deepSleep: 64, lightSleep: 220, remSleep: 79, totalSleep: 363,
-    sleepGoal: 480, distance: 4.23, activeTime: 111, avgStress: 28, vo2Max: 38
+    sleepGoal: 480, distance: 4.23, activeTime: 111, avgStress: 28, vo2Max: 38.0
   };
 
   const weeklyData = [
@@ -24,20 +33,13 @@ export default function GarminDashboard() {
   ];
 
   const heartData = [
-    { time: '00:00', hr: 58 },
-    { time: '06:00', hr: 62 },
-    { time: '12:00', hr: 75 },
-    { time: '18:00', hr: 82 },
-    { time: '23:59', hr: 68 }
+    { time: '00:00', hr: 58 }, { time: '06:00', hr: 62 }, { time: '12:00', hr: 75 },
+    { time: '18:00', hr: 82 }, { time: '23:59', hr: 68 }
   ];
 
   const sleepData = [
-    { day: 'Lun', sleep: 7.2 },
-    { day: 'Mar', sleep: 6.8 },
-    { day: 'Mié', sleep: 8.1 },
-    { day: 'Jue', sleep: 7.9 },
-    { day: 'Vie', sleep: 7.5 },
-    { day: 'Sab', sleep: 8.3 },
+    { day: 'Lun', sleep: 7.2 }, { day: 'Mar', sleep: 6.8 }, { day: 'Mié', sleep: 8.1 },
+    { day: 'Jue', sleep: 7.9 }, { day: 'Vie', sleep: 7.5 }, { day: 'Sab', sleep: 8.3 },
     { day: 'Dom', sleep: 6.0 }
   ];
 
@@ -49,9 +51,96 @@ export default function GarminDashboard() {
   ];
 
   useEffect(() => {
-    setTodayStats(defaultStats);
-    setLoading(false);
+    const fetchGarminData = async () => {
+      setLoading(true);
+      const sensors = {
+        steps: 'sensor.garmin_connect_steps',
+        activeCalories: 'sensor.garmin_connect_active_calories',
+        restingHeartRate: 'sensor.garmin_connect_resting_heart_rate',
+        maxHeartRate: 'sensor.garmin_connect_max_heart_rate',
+        deepSleep: 'sensor.garmin_connect_deep_sleep',
+        lightSleep: 'sensor.garmin_connect_light_sleep',
+        remSleep: 'sensor.garmin_connect_rem_sleep',
+        totalSleep: 'sensor.garmin_connect_total_sleep_duration',
+        distance: 'sensor.garmin_connect_wellness_distance',
+        activeTime: 'sensor.garmin_connect_active_time',
+        avgStress: 'sensor.garmin_connect_average_stress_level',
+        vo2Max: 'sensor.garmin_connect_vo2_max'
+      };
+
+      const fetchFromHA = async (url) => {
+        try {
+          const data = {};
+          for (const [key, sensorId] of Object.entries(sensors)) {
+            const res = await fetch(`${url}/api/states/${sensorId}`, {
+              headers: { Authorization: `Bearer ${HA_TOKEN}` }
+            });
+            if (res.ok) {
+              const state = await res.json();
+              data[key] = parseFloat(state.state) || state.state;
+            }
+          }
+          return data;
+        } catch (err) {
+          return null;
+        }
+      };
+
+      let data = await fetchFromHA(HA_LOCAL_URL);
+      if (!data || Object.keys(data).length === 0) {
+        data = await fetchFromHA(HA_REMOTE_URL);
+        if (!data || Object.keys(data).length === 0) {
+          data = defaultStats;
+          setError('Datos de prueba - No conectado a HA');
+        }
+      }
+
+      if (data.distance && data.distance > 100) data.distance = data.distance / 1000;
+      setTodayStats({ ...defaultStats, ...data });
+      setLoading(false);
+    };
+
+    fetchGarminData();
   }, []);
+
+  const analyzeAndRecommend = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stats: todayStats }),
+      });
+      const data = await res.json();
+      setRecommendation(data.recommendation || 'Error en la respuesta');
+    } catch (err) {
+      setError('Error: ' + err.message);
+    }
+    setAnalyzing(false);
+  };
+
+  const handleChat = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !todayStats) return;
+
+    const msg = chatInput;
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: msg, stats: todayStats }),
+      });
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', text: data.answer || 'Error' }]);
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Error: ' + err.message }]);
+    }
+    setChatLoading(false);
+  };
 
   if (loading || !todayStats) {
     return (
@@ -69,93 +158,113 @@ export default function GarminDashboard() {
       <h1 className="text-4xl font-bold text-white mb-2">Entrenador Personal IA</h1>
       <p className="text-slate-400 mb-8">Análisis Garmin + Recomendaciones inteligentes</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
-          <div className="flex items-start gap-3 mb-3">
-            <Activity size={20} className="text-blue-400" />
-            <span className="text-xs font-semibold text-slate-400">{Math.round(stepsProgress)}%</span>
-          </div>
-          <p className="text-slate-400 text-xs uppercase font-bold mb-2">Pasos</p>
-          <p className="text-2xl font-bold text-white mb-3">{todayStats.steps}</p>
-          <div className="w-full bg-slate-700 rounded-full h-2">
-            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.min(stepsProgress, 100)}%` }} />
-          </div>
+      {error && (
+        <div className="mb-6 bg-yellow-900/30 border border-yellow-700 rounded-lg p-4 flex gap-3">
+          <AlertCircle size={20} className="text-yellow-400" />
+          <p className="text-sm text-yellow-300">{error}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2">
+          <button
+            onClick={analyzeAndRecommend}
+            disabled={analyzing}
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-lg mb-6"
+          >
+            {analyzing ? <><Loader size={24} className="animate-spin" /></> : <><Brain size={24} /></>}
+            {analyzing ? 'Analizando...' : 'Analizar Entrenamiento'}
+          </button>
+
+          {recommendation && (
+            <div className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border-2 border-purple-500 rounded-xl p-6">
+              <h2 className="text-xl font-bold text-white mb-3">Recomendación:</h2>
+              <p className="text-slate-200">{recommendation}</p>
+            </div>
+          )}
         </div>
 
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
-          <div className="flex items-start gap-3 mb-3">
-            <Flame size={20} className="text-orange-400" />
+        <div className="bg-slate-800 rounded-xl border border-slate-700 flex flex-col h-96">
+          <div className="p-4 border-b border-slate-700">
+            <h3 className="text-white font-bold flex items-center gap-2">
+              <MessageCircle size={20} className="text-cyan-400" />
+              Chat IA
+            </h3>
           </div>
-          <p className="text-slate-400 text-xs uppercase font-bold mb-2">Calorías Activas</p>
-          <p className="text-2xl font-bold text-white">{Math.round(todayStats.activeCalories)}</p>
-          <p className="text-xs text-slate-500 mt-3">kcal</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
-          <div className="flex items-start gap-3 mb-3">
-            <Heart size={20} className="text-red-400" />
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-xs rounded-lg p-3 text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-200'}`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
           </div>
-          <p className="text-slate-400 text-xs uppercase font-bold mb-2">FC en Reposo</p>
-          <p className="text-2xl font-bold text-white">{todayStats.restingHeartRate}</p>
-          <p className="text-xs text-slate-500 mt-3">bpm</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 border border-slate-700">
-          <div className="flex items-start gap-3 mb-3">
-            <Moon size={20} className="text-indigo-400" />
-            <span className="text-xs font-semibold text-slate-400">{Math.round(sleepProgress)}%</span>
-          </div>
-          <p className="text-slate-400 text-xs uppercase font-bold mb-2">Sueño</p>
-          <p className="text-2xl font-bold text-white">{(todayStats.totalSleep / 60).toFixed(1)}</p>
-          <p className="text-xs text-slate-500 mt-3">hrs</p>
+          <form onSubmit={handleChat} className="p-4 border-t border-slate-700 flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Pregunta..."
+              className="flex-1 bg-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg">
+              <Send size={18} />
+            </button>
+          </form>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-2">FC Máxima</p>
-          <p className="text-xl font-bold text-red-400">{todayStats.maxHeartRate}</p>
-          <p className="text-xs text-slate-500 mt-1">bpm</p>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            <Activity size={20} className="text-blue-400" />
+          </div>
+          <p className="text-slate-400 text-xs">Pasos</p>
+          <p className="text-2xl font-bold text-white">{todayStats.steps}</p>
+          <div className="w-full bg-slate-700 rounded-full h-2 mt-2">
+            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.min(stepsProgress, 100)}%` }} />
+          </div>
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-2">VO₂ Máximo</p>
-          <p className="text-xl font-bold text-cyan-400">{todayStats.vo2Max}</p>
-          <p className="text-xs text-slate-500 mt-1">ml/kg/min</p>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            <Flame size={20} className="text-orange-400" />
+          </div>
+          <p className="text-slate-400 text-xs">Calorías</p>
+          <p className="text-2xl font-bold text-white">{Math.round(todayStats.activeCalories)}</p>
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-2">Distancia</p>
-          <p className="text-xl font-bold text-emerald-400">{todayStats.distance.toFixed(2)}</p>
-          <p className="text-xs text-slate-500 mt-1">km</p>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            <Heart size={20} className="text-red-400" />
+          </div>
+          <p className="text-slate-400 text-xs">FC Reposo</p>
+          <p className="text-2xl font-bold text-white">{todayStats.restingHeartRate}</p>
         </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-          <p className="text-xs text-slate-400 mb-2">Nivel Estrés</p>
-          <p className="text-xl font-bold text-yellow-400">{todayStats.avgStress}</p>
-          <p className="text-xs text-slate-500 mt-1">0-100</p>
+        <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            <Moon size={20} className="text-indigo-400" />
+          </div>
+          <p className="text-slate-400 text-xs">Sueño</p>
+          <p className="text-2xl font-bold text-white">{(todayStats.totalSleep / 60).toFixed(1)}h</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Activity size={20} className="text-blue-400" />
-            Pasos de la Semana
-          </h2>
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4">Pasos Semanales</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={weeklyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }} />
-              <Bar dataKey="steps" fill="#3b82f6" name="Pasos" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
+              <Bar dataKey="steps" fill="#3b82f6" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Heart size={20} className="text-red-400" />
-            FC durante el Día
-          </h2>
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4">Frecuencia Cardíaca</h2>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={heartData}>
               <defs>
@@ -166,48 +275,34 @@ export default function GarminDashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="time" stroke="#64748b" />
-              <YAxis stroke="#64748b" domain={[50, 100]} />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="hr" stroke="#ef4444" fillOpacity={1} fill="url(#colorHR)" name="BPM" />
+              <YAxis stroke="#64748b" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b' }} />
+              <Area type="monotone" dataKey="hr" stroke="#ef4444" fill="url(#colorHR)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Moon size={20} className="text-indigo-400" />
-            Calidad de Sueño
-          </h2>
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4">Sueño</h2>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={sleepData}>
-              <defs>
-                <linearGradient id="colorSleep" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="day" stroke="#64748b" />
               <YAxis stroke="#64748b" />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fillOpacity={1} fill="url(#colorSleep)" name="Horas" />
+              <Tooltip contentStyle={{ backgroundColor: '#1e293b' }} />
+              <Area type="monotone" dataKey="sleep" stroke="#6366f1" fill="#6366f1" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <TrendingUp size={20} className="text-purple-400" />
-            Distribución de Actividades
-          </h2>
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-lg font-bold text-white mb-4">Actividades</h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={activitiesData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}%`} outerRadius={80} fill="#8884d8" dataKey="value">
-                {activitiesData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
+              <Pie data={activitiesData} cx="50%" cy="50%" outerRadius={100} dataKey="value">
+                {activitiesData.map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
